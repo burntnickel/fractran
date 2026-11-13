@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <numeric>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -14,7 +15,6 @@
 // TODO: Add support for optional maximum number of iterations
 // TODO: Add bigint support (an optional flag to use?)
 // TODO: Add checks for overflow?
-// TODO: Add warning for fractions not in lowest terns
 
 struct Fraction {
   std::uintmax_t numerator;
@@ -57,6 +57,10 @@ static std::string StringTrimCopy(std::string s) {
 
 static void ParseError(ErrorContext context, std::string_view error) {
   std::cerr << context.filename << ":" << context.line_number << ": error: " << error << "\n";
+}
+
+static void ParseWarning(ErrorContext context, std::string_view error) {
+  std::clog << context.filename << ":" << context.line_number << ": warning: " << error << "\n";
 }
 
 std::vector<std::string> Split(const std::string& string, char delim) {
@@ -110,6 +114,10 @@ static bool ProcessFracString(std::string s, ErrorContext context, Fraction& the
   // Convert integers and populate fraction
   the_fraction.numerator = std::stoull(frac_strings[0]);
   the_fraction.denominator = std::stoull(frac_strings[1]);
+
+  if (std::gcd(the_fraction.numerator, the_fraction.denominator) != 1) {
+    ParseWarning(context, s + " is not in lowest terms");
+  }
 
   return true;
 }
