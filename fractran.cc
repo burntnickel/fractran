@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <numeric>
 #include <optional>
 #include <sstream>
@@ -14,7 +15,6 @@
 
 // TODO: Add support for optional maximum number of iterations
 // TODO: Add bigint support (an optional flag to use?)
-// TODO: Add checks for overflow?
 
 struct Fraction {
   std::uintmax_t numerator;
@@ -32,26 +32,12 @@ static void PrintUsage(void) {
   std::cerr << "Usage: fractran <filename> [intial value]\n";
 }
 
-// Trim from start (in place)
-static void LeftStringTrim(std::string& s) {
+// Trim from both ends
+static std::string StringTrimCopy(std::string s) {
   s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !std::isspace(ch); }));
-}
-
-// Trim from end (in place)
-static void RightStringTrim(std::string& s) {
   s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(),
           s.end());
-}
 
-// Trim from both ends (in place)
-static void StringTrim(std::string& s) {
-  RightStringTrim(s);
-  LeftStringTrim(s);
-}
-
-// Trim from both ends (copying)
-static std::string StringTrimCopy(std::string s) {
-  StringTrim(s);
   return s;
 }
 
@@ -267,6 +253,13 @@ static void RunProgram(const FractranProgram& p, std::uintmax_t v) {
       if (match) {
         done = false;
         n = n / p[ii].denominator;
+
+        // Check to see if we'll overflow / wrap-around
+        if ((p[ii].numerator > 0) && (n > (std::numeric_limits<decltype(n)>::max() / p[ii].numerator))) {
+          std::cerr << "Computation overflowed at this iteration\n";
+          return;
+        }
+
         n = n * p[ii].numerator;
         break;
       }
@@ -277,7 +270,7 @@ static void RunProgram(const FractranProgram& p, std::uintmax_t v) {
 }
 
 int main(int argc, char* argv[]) {
-  if ((argc < 2) | (argc > 3)) {
+  if ((argc < 2) || (argc > 3)) {
     PrintUsage();
     return EXIT_FAILURE;
   }
