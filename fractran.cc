@@ -28,11 +28,13 @@ struct ErrorContext {
   int line_number;
 };
 
+enum MessageType { kWarning, kError };
+
 static void PrintUsage(void) {
   std::cerr << "Usage: fractran <filename> [intial value]\n";
 }
 
-// Trim from both ends
+// Trim white space from both ends
 static std::string StringTrimCopy(std::string s) {
   s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !std::isspace(ch); }));
   s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(),
@@ -41,15 +43,22 @@ static std::string StringTrimCopy(std::string s) {
   return s;
 }
 
-static void ParseError(ErrorContext context, std::string_view error) {
-  std::cerr << context.filename << ":" << context.line_number << ": error: " << error << "\n";
+static void ParseMessage(ErrorContext context, std::string_view message, MessageType message_type) {
+  std::string type_str;
+
+  switch (message_type) {
+    case kWarning:
+      type_str = "warning";
+      break;
+    case (kError):
+      type_str = "error";
+      break;
+  }
+
+  std::cerr << context.filename << ":" << context.line_number << ": " << type_str << ": " << message << "\n";
 }
 
-static void ParseWarning(ErrorContext context, std::string_view error) {
-  std::clog << context.filename << ":" << context.line_number << ": warning: " << error << "\n";
-}
-
-std::vector<std::string> Split(const std::string& string, char delim) {
+static std::vector<std::string> Split(const std::string& string, char delim) {
   std::istringstream iss(string);
   std::string sub_string;
   std::vector<std::string> tokens;
@@ -68,7 +77,8 @@ static bool ValidCharCheck(std::string s, std::string valid_chars, ErrorContext 
     return true;
   }
 
-  ParseError(context, std::string("unexpected charater '") + s[invalid_pos] + "' found in '" + s + "'");
+  ParseMessage(context, std::string("unexpected charater '") + s[invalid_pos] + "' found in '" + s + "'",
+               kError);
 
   return false;
 }
@@ -82,11 +92,8 @@ static bool ProcessFracString(std::string s, ErrorContext context, Fraction& the
     return false;
   }
 
-  // Check for /
-  auto slash_loc = s.find('/');
-
-  if (slash_loc == std::string::npos) {
-    ParseError(context, "missing '/' in fraction '" + s + "'");
+  if (s.find('/') == std::string::npos) {
+    ParseMessage(context, "missing '/' in fraction '" + s + "'", kError);
     return false;
   }
 
@@ -94,7 +101,7 @@ static bool ProcessFracString(std::string s, ErrorContext context, Fraction& the
   auto frac_strings = Split(s, '/');
 
   if (frac_strings.size() != 2) {
-    ParseError(context, "more than one '/' found in '" + s + "'");
+    ParseMessage(context, "more than one '/' found in '" + s + "'", kError);
   }
 
   // Convert integers and populate fraction
@@ -102,46 +109,48 @@ static bool ProcessFracString(std::string s, ErrorContext context, Fraction& the
   the_fraction.denominator = std::stoull(frac_strings[1]);
 
   if (std::gcd(the_fraction.numerator, the_fraction.denominator) != 1) {
-    ParseWarning(context, s + " is not in lowest terms");
+    ParseMessage(context, s + " is not in lowest terms", kWarning);
   }
 
   return true;
 }
 
-static bool ReadFractionLine(std::string the_line, ErrorContext context, FractranProgram& the_program,
+static bool ReadFractionLine(std::string line, ErrorContext context, FractranProgram& program,
                              bool& complete) {
-  if (the_line.empty()) {
+  if (line.empty()) {
     return true;
   }
 
   // Check for closing ')', any text after that is an error
-  auto close_paren_loc = the_line.find(')');
+  auto close_paren_loc = line.find(')');
 
   if (close_paren_loc != std::string::npos) {
-    if (close_paren_loc == (the_line.size() - 1)) {
-      // Remove the ')' set complete flag
+    if (close_paren_loc == (line.size() - 1)) {
+      // Remove the ')' and set complete flag
       complete = true;
-      the_line.pop_back();
+      line.pop_back();
     } else {
       // If there is extra text after the program end
-      ParseError(context, std::string("unexpected text after program complete: '") +
-                              the_line.substr(close_paren_loc + 1) + "'");
+      ParseMessage(
+          context,
+          std::string("unexpected text after program complete: '") + line.substr(close_paren_loc + 1) + "'",
+          kError);
       return false;
     }
   }
 
-  auto frac_strings = Split(the_line, ',');
+  auto frac_strings = Split(line, ',');
 
   for (std::string frac_candidate : frac_strings) {
     Fraction the_fraction;
 
     bool valid = ProcessFracString(frac_candidate, context, the_fraction);
 
-    if (valid) {
-      the_program.push_back(the_fraction);
-    } else {
+    if (!valid) {
       return false;
     }
+
+    program.push_back(the_fraction);
   }
 
   return true;
@@ -158,8 +167,8 @@ static std::optional<FractranProgram> LoadProgram(std::filesystem::path path) {
   bool done_reading = false;
   int line_number = 0;
   bool in_program = false;
-  bool program_complete = false;
-  FractranProgram tmp_program;
+  bool prog_complete = false;
+  FractranProgram tmp_prog;
 
   while (!done_reading) {
     std::string next_line;
@@ -172,45 +181,45 @@ static std::optional<FractranProgram> LoadProgram(std::filesystem::path path) {
     } else {
       // Skip blank lines
       if (next_line.length() > 0) {
-        std::string tmp_string = StringTrimCopy(next_line);
+        std::string tmp_str = StringTrimCopy(next_line);
 
         // Skip comment lines
-        if (tmp_string[0] != '#') {
+        if (tmp_str[0] != '#') {
           ErrorContext context{path.filename().string(), line_number};
 
           if (in_program) {
-            bool line_valid = ReadFractionLine(tmp_string, context, tmp_program, program_complete);
+            bool line_valid = ReadFractionLine(tmp_str, context, tmp_prog, prog_complete);
 
             if (!line_valid) {
               return {};
             }
 
-            if (program_complete) {
+            if (prog_complete) {
               in_program = false;
             }
           } else {
-            if (program_complete) {
+            if (prog_complete) {
               // If we've already completed a program we shouldn't see an new charaters
-              ParseError(context, std::string("program already complete, found '") + tmp_string[0] + "'");
+              ParseMessage(context, std::string("program already complete, found '") + tmp_str[0] + "'",
+                           kError);
               return {};
             }
 
-            if (tmp_string[0] == '(') {
+            if (tmp_str[0] == '(') {
               in_program = true;
 
-              bool line_valid =
-                  ReadFractionLine(tmp_string.substr(1), context, tmp_program, program_complete);
+              bool line_valid = ReadFractionLine(tmp_str.substr(1), context, tmp_prog, prog_complete);
 
               if (!line_valid) {
                 return {};
               }
 
-              if (program_complete) {
+              if (prog_complete) {
                 in_program = false;
               }
             } else {
               // The only non-comment, non-white space chararter that is valid if not in a program is '('
-              ParseError(context, std::string("expected '(' found '") + tmp_string[0] + "'");
+              ParseMessage(context, std::string("expected '(' found '") + tmp_str[0] + "'", kError);
               return {};
             }
           }
@@ -221,7 +230,7 @@ static std::optional<FractranProgram> LoadProgram(std::filesystem::path path) {
 
   in.close();
 
-  return tmp_program;
+  return tmp_prog;
 }
 
 static std::uintmax_t GetInitialValue(void) {
@@ -229,7 +238,6 @@ static std::uintmax_t GetInitialValue(void) {
 
   std::string tmp;
   std::cin >> tmp;
-
   std::cout << "\n";
 
   return std::stoull(tmp);
@@ -275,9 +283,7 @@ int main(int argc, char* argv[]) {
     return EXIT_FAILURE;
   }
 
-  char* path = argv[1];
-
-  std::optional<FractranProgram> the_program_opt = LoadProgram(path);
+  std::optional<FractranProgram> the_program_opt = LoadProgram(argv[1]);
 
   if (!the_program_opt) {
     return EXIT_FAILURE;
