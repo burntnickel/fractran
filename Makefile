@@ -6,7 +6,7 @@ LDLIBS =
 
 TARGET = fractran
 
-SRCS = fractran.cc
+SRCS = fractran.cc fractran_message.cc
 
 CXXFLAGS += -Wall -Wextra -Wwrite-strings -Wno-parentheses -Wpedantic -Wdeprecated
 CXXFLAGS += -Wsign-conversion -Wimplicit-fallthrough -Wshadow -Warray-bounds

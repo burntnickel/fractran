@@ -1,3 +1,5 @@
+#include "fractran_message.h"
+
 #include <algorithm>
 #include <cstdint>
 #include <cstdlib>
@@ -27,18 +29,11 @@ struct Fraction {
 
 using FractranProgram = std::vector<Fraction>;
 
-struct ErrorContext {
-  std::string filename;
-  int line_number;
-};
-
 struct CommandLineArgs {
   std::string filename;
   std::optional<LargeIntType> inital_value_opt{};
   std::optional<LargeIntType> max_iterations_opt{};
 };
-
-enum MessageType { kWarning, kError };
 
 static void PrintUsage(void) {
   std::cerr << "Usage: fractran [-v intial_value] [-i max_iterations] <filename>\n";
@@ -53,21 +48,6 @@ static std::string StringTrimCopy(std::string s) {
   return s;
 }
 
-static void ParseMessage(ErrorContext context, std::string_view message, MessageType message_type) {
-  std::string type_str;
-
-  switch (message_type) {
-    case kWarning:
-      type_str = "warning";
-      break;
-    case (kError):
-      type_str = "error";
-      break;
-  }
-
-  std::cerr << context.filename << ":" << context.line_number << ": " << type_str << ": " << message << "\n";
-}
-
 static std::vector<std::string> Split(const std::string& string, char delim) {
   std::istringstream iss(string);
   std::string sub_string;
@@ -80,20 +60,20 @@ static std::vector<std::string> Split(const std::string& string, char delim) {
   return tokens;
 }
 
-static bool ValidCharCheck(std::string s, std::string valid_chars, ErrorContext context) {
+static bool ValidCharCheck(std::string s, std::string valid_chars, MessageContext context) {
   size_t invalid_pos = s.find_first_not_of(valid_chars);
 
   if (invalid_pos == std::string::npos) {
     return true;
   }
 
-  ParseMessage(context, std::string("unexpected charater '") + s[invalid_pos] + "' found in '" + s + "'",
+  Message(context, std::string("unexpected charater '") + s[invalid_pos] + "' found in '" + s + "'",
                kError);
 
   return false;
 }
 
-static bool ProcessFracString(std::string s, ErrorContext context, Fraction& the_fraction) {
+static bool ProcessFracString(std::string s, MessageContext context, Fraction& the_fraction) {
   // Remove all white space
   s.erase(std::remove_if(s.begin(), s.end(), [](unsigned char x) { return std::isspace(x); }), s.end());
 
@@ -103,7 +83,7 @@ static bool ProcessFracString(std::string s, ErrorContext context, Fraction& the
   }
 
   if (s.find('/') == std::string::npos) {
-    ParseMessage(context, "missing '/' in fraction '" + s + "'", kError);
+    Message(context, "missing '/' in fraction '" + s + "'", kError);
     return false;
   }
 
@@ -111,7 +91,7 @@ static bool ProcessFracString(std::string s, ErrorContext context, Fraction& the
   auto frac_strings = Split(s, '/');
 
   if (frac_strings.size() != 2) {
-    ParseMessage(context, "more than one '/' found in '" + s + "'", kError);
+    Message(context, "more than one '/' found in '" + s + "'", kError);
   }
 
   // Convert integers and populate fraction
@@ -119,13 +99,13 @@ static bool ProcessFracString(std::string s, ErrorContext context, Fraction& the
   the_fraction.denominator = std::stoull(frac_strings[1]);
 
   if (std::gcd(the_fraction.numerator, the_fraction.denominator) != 1) {
-    ParseMessage(context, s + " is not in lowest terms", kWarning);
+    Message(context, s + " is not in lowest terms", kWarning);
   }
 
   return true;
 }
 
-static bool ReadFractionLine(std::string line, ErrorContext context, FractranProgram& program,
+static bool ReadFractionLine(std::string line, MessageContext context, FractranProgram& program,
                              bool& complete) {
   if (line.empty()) {
     return true;
@@ -141,7 +121,7 @@ static bool ReadFractionLine(std::string line, ErrorContext context, FractranPro
       line.pop_back();
     } else {
       // If there is extra text after the program end
-      ParseMessage(
+      Message(
           context,
           std::string("unexpected text after program complete: '") + line.substr(close_paren_loc + 1) + "'",
           kError);
@@ -195,7 +175,7 @@ static std::optional<FractranProgram> LoadProgram(std::filesystem::path path) {
 
         // Skip comment lines
         if (tmp_str[0] != '#') {
-          ErrorContext context{path.filename().string(), line_number};
+          MessageContext context{path.filename().string(), line_number};
 
           if (in_program) {
             bool line_valid = ReadFractionLine(tmp_str, context, tmp_prog, prog_complete);
@@ -210,7 +190,7 @@ static std::optional<FractranProgram> LoadProgram(std::filesystem::path path) {
           } else {
             if (prog_complete) {
               // If we've already completed a program we shouldn't see an new charaters
-              ParseMessage(context, std::string("program already complete, found '") + tmp_str[0] + "'",
+              Message(context, std::string("program already complete, found '") + tmp_str[0] + "'",
                            kError);
               return {};
             }
@@ -229,7 +209,7 @@ static std::optional<FractranProgram> LoadProgram(std::filesystem::path path) {
               }
             } else {
               // The only non-comment, non-white space chararter that is valid if not in a program is '('
-              ParseMessage(context, std::string("expected '(' found '") + tmp_str[0] + "'", kError);
+              Message(context, std::string("expected '(' found '") + tmp_str[0] + "'", kError);
               return {};
             }
           }
@@ -283,9 +263,7 @@ static void RunProgram(const FractranProgram& p, LargeIntType v, LargeIntType ma
       }
     }
 
-    if (itr >= max_itr) {
-      done = true;
-    }
+    done = (itr >= max_itr);
 
     ++itr;
   }
