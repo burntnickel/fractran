@@ -1,14 +1,13 @@
 #include "fractran_message.h"
+#include "fractran_types.h"
 #include "util.h"
 
 #include <algorithm>
-#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-#include <limits>
 #include <numeric>
 #include <optional>
 #include <sstream>
@@ -18,17 +17,6 @@
 
 // TODO: Add bigint support (an optional flag to use?)
 // TODO: Add catch for throwing conversions
-
-using LargeIntType = std::uintmax_t;
-
-constexpr auto kMaxInt = std::numeric_limits<LargeIntType>::max();
-
-struct Fraction {
-  LargeIntType numerator;
-  LargeIntType denominator;
-};
-
-using FractranProgram = std::vector<Fraction>;
 
 struct CommandLineArgs {
   std::string filename;
