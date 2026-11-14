@@ -13,12 +13,16 @@
 #include <string_view>
 #include <vector>
 
-// TODO: Add support for optional maximum number of iterations
 // TODO: Add bigint support (an optional flag to use?)
+// TODO: Add catch for throwing conversions
+
+using LargeIntType = std::uintmax_t;
+
+constexpr auto kMaxInt = std::numeric_limits<LargeIntType>::max();
 
 struct Fraction {
-  std::uintmax_t numerator;
-  std::uintmax_t denominator;
+  LargeIntType numerator;
+  LargeIntType denominator;
 };
 
 using FractranProgram = std::vector<Fraction>;
@@ -28,10 +32,16 @@ struct ErrorContext {
   int line_number;
 };
 
+struct CommandLineArgs {
+  std::string filename;
+  std::optional<LargeIntType> inital_value_opt{};
+  std::optional<LargeIntType> max_iterations_opt{};
+};
+
 enum MessageType { kWarning, kError };
 
 static void PrintUsage(void) {
-  std::cerr << "Usage: fractran <filename> [intial value]\n";
+  std::cerr << "Usage: fractran [-v intial_value] [-i max_iterations] <filename>\n";
 }
 
 // Trim white space from both ends
@@ -233,7 +243,7 @@ static std::optional<FractranProgram> LoadProgram(std::filesystem::path path) {
   return tmp_prog;
 }
 
-static std::uintmax_t GetInitialValue(void) {
+static LargeIntType GetInitialValue(void) {
   std::cout << "Input inital value for program: ";
 
   std::string tmp;
@@ -243,14 +253,14 @@ static std::uintmax_t GetInitialValue(void) {
   return std::stoull(tmp);
 }
 
-static void RunProgram(const FractranProgram& p, std::uintmax_t v) {
+static void RunProgram(const FractranProgram& p, LargeIntType v, LargeIntType max_itr) {
   bool done = false;
-  std::uintmax_t n = v;
-  int step = 0;
+  LargeIntType n = v;
   auto prog_len = p.size();
+  LargeIntType itr = 1;
 
   while (!done) {
-    std::cout << step << "    " << n << "\n";
+    std::cout << itr << "    " << n << "\n";
 
     bool match = false;
     done = true;
@@ -263,7 +273,7 @@ static void RunProgram(const FractranProgram& p, std::uintmax_t v) {
         n = n / p[ii].denominator;
 
         // Check to see if we'll overflow / wrap-around
-        if ((p[ii].numerator > 0) && (n > (std::numeric_limits<decltype(n)>::max() / p[ii].numerator))) {
+        if ((p[ii].numerator > 0) && (n > (kMaxInt / p[ii].numerator))) {
           std::cerr << "Computation overflowed at this iteration\n";
           return;
         }
@@ -273,31 +283,98 @@ static void RunProgram(const FractranProgram& p, std::uintmax_t v) {
       }
     }
 
-    ++step;
+    if (itr >= max_itr) {
+      done = true;
+    }
+
+    ++itr;
   }
 }
 
+static std::optional<CommandLineArgs> GetCommandLine(int argc, char* argv[]) {
+  CommandLineArgs tmp_args;
+  int cur_arg_idx = 1;
+  bool got_filename = false;
+
+  while (cur_arg_idx < argc) {
+    std::cout << argv[cur_arg_idx] << "\n";
+
+    if (got_filename) {
+      std::cerr << "Unexpected arguements following filename\n";
+      return {};
+    }
+
+    if (argv[cur_arg_idx][0] == '-') {
+      if (strcmp("-v", argv[cur_arg_idx]) == 0) {
+        ++cur_arg_idx;
+
+        if (cur_arg_idx < argc) {
+          tmp_args.inital_value_opt = std::stoull(argv[cur_arg_idx]);
+        } else {
+          std::cerr << "Missing arguement for -v\n";
+          return {};
+        }
+      } else if (strcmp("-i", argv[cur_arg_idx]) == 0) {
+        ++cur_arg_idx;
+
+        if (cur_arg_idx < argc) {
+          tmp_args.max_iterations_opt = std::stoull(argv[cur_arg_idx]);
+        } else {
+          std::cerr << "Missing arguement for -i\n";
+          return {};
+        }
+      } else {
+        std::cerr << "Unknown parameter '" << argv[cur_arg_idx] << "'\n";
+        return {};
+      }
+    } else {
+      tmp_args.filename = argv[cur_arg_idx];
+      got_filename = true;
+    }
+
+    ++cur_arg_idx;
+  }
+
+  if (!got_filename) {
+    std::cerr << "Missing filename for program\n";
+    return {};
+  }
+
+  return tmp_args;
+}
+
 int main(int argc, char* argv[]) {
-  if ((argc < 2) || (argc > 3)) {
+  std::optional<CommandLineArgs> command_line_opt = GetCommandLine(argc, argv);
+
+  if (!command_line_opt) {
     PrintUsage();
     return EXIT_FAILURE;
   }
 
-  std::optional<FractranProgram> the_program_opt = LoadProgram(argv[1]);
+  CommandLineArgs command_line = command_line_opt.value();
+
+  std::optional<FractranProgram> the_program_opt = LoadProgram(command_line.filename);
 
   if (!the_program_opt) {
     return EXIT_FAILURE;
   }
 
-  std::uintmax_t initial_value;
+  LargeIntType initial_value;
+  LargeIntType max_itr;
 
-  if (argc == 3) {
-    initial_value = std::stoull(argv[2]);
+  if (command_line.inital_value_opt) {
+    initial_value = command_line.inital_value_opt.value();
   } else {
     initial_value = GetInitialValue();
   }
 
-  RunProgram(the_program_opt.value(), initial_value);
+  if (command_line.max_iterations_opt) {
+    max_itr = command_line.max_iterations_opt.value();
+  } else {
+    max_itr = kMaxInt;
+  }
+
+  RunProgram(the_program_opt.value(), initial_value, max_itr);
 
   return EXIT_SUCCESS;
 }
