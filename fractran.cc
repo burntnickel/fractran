@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstdlib>
 #include <cstring>
+#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -29,8 +30,7 @@ static bool ValidCharCheck(std::string s, std::string valid_chars, MessageContex
     return true;
   }
 
-  Message(context, std::string("unexpected charater '") + s[invalid_pos] + "' found in '" + s + "'",
-               kError);
+  Message(context, std::string("unexpected charater '") + s[invalid_pos] + "' found in '" + s + "'", kError);
 
   return false;
 }
@@ -52,9 +52,20 @@ static bool ProcessFracString(std::string s, MessageContext context, Fraction& t
     return false;
   }
 
-  // Convert integers and populate fraction
-  the_fraction.numerator = std::stoull(frac_strings[0]);
-  the_fraction.denominator = std::stoull(frac_strings[1]);
+  try {
+    the_fraction.numerator = std::stoull(frac_strings[0]);
+    the_fraction.denominator = std::stoull(frac_strings[1]);
+  }
+
+  catch (const std::invalid_argument& e) {
+    std::string err_str = "unable to convert fraction, invalid arguement, '" + s + "', " + e.what();
+    Message(context, err_str, kError);
+  }
+
+  catch (const std::out_of_range& e) {
+    std::string err_str = "unable to convert fraction, out of range, '" + s + "', " + e.what();
+    Message(context, err_str, kError);
+  }
 
   if (std::gcd(the_fraction.numerator, the_fraction.denominator) != 1) {
     Message(context, s + " is not in lowest terms", kWarning);
@@ -148,8 +159,7 @@ static std::optional<FractranProgram> LoadProgram(std::filesystem::path path) {
           } else {
             if (prog_complete) {
               // If we've already completed a program we shouldn't see an new charaters
-              Message(context, std::string("program already complete, found '") + tmp_str[0] + "'",
-                           kError);
+              Message(context, std::string("program already complete, found '") + tmp_str[0] + "'", kError);
               return {};
             }
 
@@ -181,14 +191,21 @@ static std::optional<FractranProgram> LoadProgram(std::filesystem::path path) {
   return tmp_prog;
 }
 
-static LargeIntType GetInitialValue(void) {
+static std::optional<LargeIntType> GetInitialValue(void) {
   std::cout << "Input inital value for program: ";
 
   std::string tmp;
   std::cin >> tmp;
   std::cout << "\n";
 
-  return std::stoull(tmp);
+  try {
+    return std::stoull(tmp);
+  }
+
+  catch (const std::exception& e) {
+    std::cerr << "Unable to convert input, " << e.what() << "\n";
+    return {};
+  }
 }
 
 static void RunProgram(const FractranProgram& p, LargeIntType v, LargeIntType max_itr) {
@@ -249,7 +266,13 @@ int main(int argc, char* argv[]) {
   if (command_line.inital_value_opt) {
     initial_value = command_line.inital_value_opt.value();
   } else {
-    initial_value = GetInitialValue();
+    auto initial_value_opt = GetInitialValue();
+    
+    if (initial_value_opt) {
+      initial_value = initial_value_opt.value();
+    } else {
+      return EXIT_FAILURE;
+    }
   }
 
   if (command_line.max_iterations_opt) {
