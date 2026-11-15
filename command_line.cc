@@ -9,8 +9,6 @@ std::optional<CommandLineArgs> GetCommandLine(int argc, char* argv[]) {
   bool got_filename = false;
 
   while (cur_arg_idx < argc) {
-    std::cout << argv[cur_arg_idx] << "\n";
-
     if (got_filename) {
       std::cerr << "Unexpected arguements following filename\n";
       return {};

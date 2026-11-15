@@ -44,16 +44,12 @@ static bool ProcessFracString(std::string s, MessageContext context, Fraction& t
     return false;
   }
 
-  if (s.find('/') == std::string::npos) {
-    Message(context, "missing '/' in fraction '" + s + "'", kError);
-    return false;
-  }
-
   // Split on /
   auto frac_strings = Split(s, '/');
 
   if (frac_strings.size() != 2) {
-    Message(context, "more than one '/' found in '" + s + "'", kError);
+    Message(context, "fraction must include exatly one '/': '" + s + "'", kError);
+    return false;
   }
 
   // Convert integers and populate fraction
