@@ -17,7 +17,6 @@
 #include <vector>
 
 // TODO: Add bigint support (an optional flag to use?)
-// TODO: Add catch for throwing conversions
 
 static void PrintUsage(void) {
   std::cerr << "Usage: fractran [-v intial_value] [-i max_iterations] <filename>\n";
@@ -36,8 +35,7 @@ static bool ValidCharCheck(std::string s, std::string valid_chars, MessageContex
 }
 
 static bool ProcessFracString(std::string s, MessageContext context, Fraction& the_fraction) {
-  // Remove all white space
-  s.erase(std::remove_if(s.begin(), s.end(), [](unsigned char x) { return std::isspace(x); }), s.end());
+  RemoveAllWhiteSpace(s);
 
   // Check for valid characters
   if (!ValidCharCheck(s, "//0123456789", context)) {
@@ -203,7 +201,7 @@ static std::optional<LargeIntType> GetInitialValue(void) {
   }
 
   catch (const std::exception& e) {
-    std::cerr << "Unable to convert input, " << e.what() << "\n";
+    std::cerr << "Invalid initial value: '" << tmp << "'\n";
     return {};
   }
 }
@@ -267,7 +265,7 @@ int main(int argc, char* argv[]) {
     initial_value = command_line.inital_value_opt.value();
   } else {
     auto initial_value_opt = GetInitialValue();
-    
+
     if (initial_value_opt) {
       initial_value = initial_value_opt.value();
     } else {

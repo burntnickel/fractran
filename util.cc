@@ -24,3 +24,8 @@ std::vector<std::string> Split(const std::string& string, char delim) {
   return tokens;
 }
 
+void RemoveAllWhiteSpace(std::string& s){
+    s.erase(std::remove_if(s.begin(), s.end(), [](unsigned char x) { return std::isspace(x); }), s.end());
+}
+
+

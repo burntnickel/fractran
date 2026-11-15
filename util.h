@@ -9,4 +9,6 @@ std::string StringTrimCopy(std::string s);
 
 std::vector<std::string> Split(const std::string& string, char delim);
 
+void RemoveAllWhiteSpace(std::string& s);
+
 #endif
