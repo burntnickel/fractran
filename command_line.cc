@@ -1,4 +1,5 @@
 #include "command_line.h"
+#include "util.h"
 
 #include <cstring>
 #include <iostream>
@@ -10,7 +11,7 @@ std::optional<CommandLineArgs> GetCommandLine(int argc, char* argv[]) {
 
   while (cur_arg_idx < argc) {
     if (got_filename) {
-      std::cerr << "Unexpected arguements following filename\n";
+      std::cerr << "Unexpected arguments following filename\n";
       return {};
     }
 
@@ -19,7 +20,12 @@ std::optional<CommandLineArgs> GetCommandLine(int argc, char* argv[]) {
         ++cur_arg_idx;
 
         if (cur_arg_idx < argc) {
-          tmp_args.inital_value_opt = std::stoull(argv[cur_arg_idx]);
+          tmp_args.inital_value_opt = StoullNoThrow(argv[cur_arg_idx]);
+
+          if (!tmp_args.inital_value_opt) {
+            std::cerr << "Invalid arguement for -v: '" << argv[cur_arg_idx] << "'\n";
+            return {};
+          }
         } else {
           std::cerr << "Missing arguement for -v\n";
           return {};
@@ -28,7 +34,12 @@ std::optional<CommandLineArgs> GetCommandLine(int argc, char* argv[]) {
         ++cur_arg_idx;
 
         if (cur_arg_idx < argc) {
-          tmp_args.max_iterations_opt = std::stoull(argv[cur_arg_idx]);
+          tmp_args.max_iterations_opt = StoullNoThrow(argv[cur_arg_idx]);
+
+          if (!tmp_args.max_iterations_opt) {
+            std::cerr << "Invalid arguement for -i: '" << argv[cur_arg_idx] << "'\n";
+            return {};
+          }
         } else {
           std::cerr << "Missing arguement for -i\n";
           return {};
@@ -52,4 +63,3 @@ std::optional<CommandLineArgs> GetCommandLine(int argc, char* argv[]) {
 
   return tmp_args;
 }
-

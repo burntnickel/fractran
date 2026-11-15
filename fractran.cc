@@ -16,7 +16,7 @@
 #include <string_view>
 #include <vector>
 
-// TODO: Add bigint support (an optional flag to use?)
+// TODO: Add bigint support (and an optional flag to use?)
 
 static void PrintUsage(void) {
   std::cerr << "Usage: fractran [-v intial_value] [-i max_iterations] <filename>\n";
@@ -47,20 +47,24 @@ static bool ProcessFracString(std::string s, MessageContext context, Fraction& t
     return false;
   }
 
-  try {
-    the_fraction.numerator = std::stoull(frac_strings[0]);
-    the_fraction.denominator = std::stoull(frac_strings[1]);
+  std::string err_str;
+
+  auto num_opt = StoullNoThrow(frac_strings[0], err_str);
+
+  if (!num_opt) {
+    Message(context, "unable to convert numerator '" + s + "', " + err_str, kError);
+    return false;
   }
 
-  catch (const std::invalid_argument& e) {
-    std::string err_str = "unable to convert fraction, invalid arguement, '" + s + "', " + e.what();
-    Message(context, err_str, kError);
+  auto den_opt = StoullNoThrow(frac_strings[1], err_str);
+
+  if (!den_opt) {
+    Message(context, "unable to convert denominator '" + s + "', " + err_str, kError);
+    return false;
   }
 
-  catch (const std::out_of_range& e) {
-    std::string err_str = "unable to convert fraction, out of range, '" + s + "', " + e.what();
-    Message(context, err_str, kError);
-  }
+  the_fraction.numerator = num_opt.value();
+  the_fraction.denominator = den_opt.value();
 
   if (std::gcd(the_fraction.numerator, the_fraction.denominator) != 1) {
     Message(context, s + " is not in lowest terms", kWarning);
@@ -189,18 +193,17 @@ static std::optional<FractranProgram> LoadProgram(std::filesystem::path path) {
 static std::optional<LargeIntType> GetInitialValue(void) {
   std::cout << "Input inital value for program: ";
 
-  std::string tmp;
-  std::cin >> tmp;
+  std::string input_str;
+  std::cin >> input_str;
   std::cout << "\n";
 
-  try {
-    return std::stoull(tmp);
+  auto tmp_opt = StoullNoThrow(input_str);
+
+  if (!tmp_opt) {
+    std::cerr << "Invalid initial value: '" << input_str << "'\n";
   }
 
-  catch (const std::exception& e) {
-    std::cerr << "Invalid initial value: '" << tmp << "'\n";
-    return {};
-  }
+  return tmp_opt;
 }
 
 static void RunProgram(const FractranProgram& p, LargeIntType v, LargeIntType max_itr) {
