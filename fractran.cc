@@ -22,23 +22,15 @@ static void PrintUsage(void) {
   std::cerr << "Usage: fractran [-v intial_value] [-i max_iterations] <filename>\n";
 }
 
-static bool ValidCharCheck(std::string s, std::string valid_chars, MessageContext context) {
-  size_t invalid_pos = s.find_first_not_of(valid_chars);
-
-  if (invalid_pos == std::string::npos) {
-    return true;
-  }
-
-  Message(context, std::string("unexpected charater '") + s[invalid_pos] + "' found in '" + s + "'", kError);
-
-  return false;
-}
-
 static bool ProcessFracString(std::string s, MessageContext context, Fraction& the_fraction) {
   RemoveAllWhiteSpace(s);
 
-  // Check for valid characters
-  if (!ValidCharCheck(s, "//0123456789", context)) {
+  auto invalid_char_opt = InvalidCharCheck(s, "//0123456789");
+
+  if (invalid_char_opt) {
+    Message(context,
+            std::string("unexpected charater '") + invalid_char_opt.value() + "' found in '" + s + "'",
+            kError);
     return false;
   }
 

@@ -24,8 +24,16 @@ std::vector<std::string> Split(const std::string& string, char delim) {
   return tokens;
 }
 
-void RemoveAllWhiteSpace(std::string& s){
-    s.erase(std::remove_if(s.begin(), s.end(), [](unsigned char x) { return std::isspace(x); }), s.end());
+void RemoveAllWhiteSpace(std::string& s) {
+  s.erase(std::remove_if(s.begin(), s.end(), [](unsigned char x) { return std::isspace(x); }), s.end());
 }
 
+std::optional<char> InvalidCharCheck(std::string_view s, std::string_view valid_chars) {
+  size_t invalid_pos = s.find_first_not_of(valid_chars);
 
+  if (invalid_pos == std::string::npos) {
+    return {};
+  }
+
+  return s[invalid_pos];
+}
