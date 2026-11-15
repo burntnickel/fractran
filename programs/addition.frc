@@ -1,0 +1,5 @@
+# A FRACTRAN program implementing addition
+# See: https://ollybritton.com/blog/using-a-scientific-calculator-as-a-turing-machine/
+
+( 5 / 2, 5 / 3 )
+

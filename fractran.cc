@@ -35,8 +35,13 @@ static bool ProcessFracString(std::string s, MessageContext context, Fraction& t
   }
 
   // Split on /
+  // TODO: This doesn't catch extraneous leading or trailing /s
   auto frac_strings = Split(s, '/');
-
+/*std::cout << s << "\n";
+for (unsigned int ii=0;ii<frac_strings.size();++ii){
+  std::cout << frac_strings[ii] << "    ";
+}
+std::cout << "\n";*/
   if (frac_strings.size() != 2) {
     Message(context, "fraction must include exatly one '/': '" + s + "'", kError);
     return false;
@@ -228,7 +233,7 @@ static void RunProgram(const FractranProgram& p, LargeIntType v, LargeIntType ma
       }
     }
 
-    done = (itr >= max_itr);
+    done = (itr >= max_itr) | !match;
 
     ++itr;
   }
